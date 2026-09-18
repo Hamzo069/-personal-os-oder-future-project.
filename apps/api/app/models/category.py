@@ -8,15 +8,16 @@ from app.models.base import TimestampMixin, UUIDPrimaryKeyMixin
 
 # Seeded for every new user. Kept deliberately small - users can add their own.
 DEFAULT_CATEGORIES: list[tuple[str, str]] = [
-    ("Software & Subscriptions", "#6366f1"),
-    ("Office & Equipment", "#0ea5e9"),
-    ("Travel & Transport", "#f59e0b"),
-    ("Food & Drinks", "#22c55e"),
-    ("Education & Books", "#a855f7"),
-    ("Marketing", "#ec4899"),
-    ("Telecommunication", "#14b8a6"),
-    ("Insurance & Fees", "#64748b"),
-    ("Rent & Utilities", "#ef4444"),
+    # Colors: a CVD-safe categorical palette in fixed order; "Other" is neutral.
+    ("Software & Subscriptions", "#2a78d6"),
+    ("Office & Equipment", "#eb6834"),
+    ("Travel & Transport", "#1baf7a"),
+    ("Food & Drinks", "#eda100"),
+    ("Education & Books", "#e87ba4"),
+    ("Marketing", "#008300"),
+    ("Telecommunication", "#4a3aa7"),
+    ("Rent & Utilities", "#e34948"),
+    ("Insurance & Fees", "#52514e"),
     ("Other", "#9ca3af"),
 ]
 
