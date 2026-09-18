@@ -31,6 +31,31 @@ let accessToken: string | null = null;
 let refreshInFlight: Promise<boolean> | null = null;
 let onSessionExpired: (() => void) | null = null;
 
+/**
+ * The refresh cookie is httpOnly, so the app cannot see whether one exists. A
+ * harmless marker in localStorage records that a session was started on this
+ * browser, which lets the start-up code skip a pointless refresh call (and the
+ * resulting 401 in the console) for first-time visitors. It carries no secret.
+ */
+const SESSION_MARKER = "ledgerlens:session";
+
+export function markSession(active: boolean): void {
+  try {
+    if (active) localStorage.setItem(SESSION_MARKER, "1");
+    else localStorage.removeItem(SESSION_MARKER);
+  } catch {
+    // storage unavailable (private mode, blocked) - refresh will simply be attempted
+  }
+}
+
+export function hasSessionMarker(): boolean {
+  try {
+    return localStorage.getItem(SESSION_MARKER) === "1";
+  } catch {
+    return true;
+  }
+}
+
 export function setAccessToken(token: string | null): void {
   accessToken = token;
 }
@@ -69,10 +94,12 @@ export async function refreshSession(): Promise<boolean> {
         });
         if (!response.ok) {
           accessToken = null;
+          markSession(false);
           return false;
         }
         const data = (await response.json()) as TokenResponse;
         accessToken = data.access_token;
+        markSession(true);
         return true;
       } catch {
         return false;

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { ApiError, api, refreshSession, setAccessToken, setSessionExpiredHandler } from "@/lib/api";
+import { ApiError, api, hasSessionMarker, markSession, refreshSession, setAccessToken, setSessionExpiredHandler } from "@/lib/api";
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
@@ -14,6 +14,7 @@ describe("api client", () => {
     fetchMock.mockReset();
     setAccessToken(null);
     setSessionExpiredHandler(null);
+    markSession(false);
   });
 
   afterEach(() => vi.unstubAllGlobals());
@@ -82,5 +83,15 @@ describe("api client", () => {
     fetchMock.mockResolvedValueOnce(jsonResponse(200, {}));
     await api.get("/transactions", { q: "", page: 2, category_id: undefined, sort: "date_desc" });
     expect(fetchMock.mock.calls[0][0]).toBe("/api/v1/transactions?page=2&sort=date_desc");
+  });
+
+  it("tracks the session marker across refresh results", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { access_token: "t", token_type: "bearer", expires_in: 900 }));
+    expect(await refreshSession()).toBe(true);
+    expect(hasSessionMarker()).toBe(true);
+
+    fetchMock.mockResolvedValueOnce(jsonResponse(401, { error: { code: "unauthorized", message: "no cookie" } }));
+    expect(await refreshSession()).toBe(false);
+    expect(hasSessionMarker()).toBe(false);
   });
 });

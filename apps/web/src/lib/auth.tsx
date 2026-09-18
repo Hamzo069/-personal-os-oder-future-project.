@@ -9,7 +9,15 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 
-import { api, refreshSession, request, setAccessToken, setSessionExpiredHandler } from "@/lib/api";
+import {
+  api,
+  hasSessionMarker,
+  markSession,
+  refreshSession,
+  request,
+  setAccessToken,
+  setSessionExpiredHandler,
+} from "@/lib/api";
 import type { TokenResponse, User } from "@/types";
 
 interface AuthContextValue {
@@ -37,7 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     (async () => {
       try {
-        if (await refreshSession()) await loadUser();
+        if (hasSessionMarker() && (await refreshSession())) await loadUser();
       } catch {
         setAccessToken(null);
       } finally {
@@ -52,6 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     setSessionExpiredHandler(() => {
       setAccessToken(null);
+      markSession(false);
       setUser(null);
       queryClient.clear();
     });
@@ -62,6 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (email: string, password: string) => {
       const token = await authRequest<TokenResponse>("/auth/login", { email, password });
       setAccessToken(token.access_token);
+      markSession(true);
       await loadUser();
     },
     [loadUser],
@@ -71,6 +81,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     async (email: string, password: string, name: string) => {
       const token = await authRequest<TokenResponse>("/auth/register", { email, password, name });
       setAccessToken(token.access_token);
+      markSession(true);
       await loadUser();
     },
     [loadUser],
@@ -81,6 +92,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await api.post("/auth/logout");
     } finally {
       setAccessToken(null);
+      markSession(false);
       setUser(null);
       queryClient.clear();
     }
