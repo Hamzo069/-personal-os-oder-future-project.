@@ -97,4 +97,16 @@ def test_csv_export(alice: UserSession) -> None:
     text = response.text.lstrip("﻿")
     lines = text.strip().split("\n")
     assert lines[0].startswith("date;merchant;description;amount")
-    assert lines[1].startswith('2026-08-03;"Adobe; Inc";;23.79;EUR;19.00;;Software & Subscriptions')
+    assert lines[1].startswith('2026-08-03;"Adobe; Inc";;23.79;EUR;19.00;3.80;Software & Subscriptions')
+
+
+def test_vat_amount_is_derived_from_rate_when_missing(alice: UserSession) -> None:
+    tx = alice.add_transaction(amount="119.00", vat_rate="19")
+    assert tx["vat_amount"] == "19.00"
+    explicit = alice.add_transaction(amount="10.00", vat_rate="7", vat_amount="0.50")
+    assert explicit["vat_amount"] == "0.50"  # explicit values are never overridden
+    no_rate = alice.add_transaction(amount="10.00")
+    assert no_rate["vat_amount"] is None
+
+    updated = alice.patch(f"{URL}/{tx['id']}", json={"vat_rate": "7"}).json()
+    assert updated["vat_amount"] == "7.79"  # 119 - 119/1.07

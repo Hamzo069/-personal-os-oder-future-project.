@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import csv
 import io
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from sqlalchemy import Select, func, or_, select
@@ -69,6 +69,14 @@ def _validate_category(db: Session, user_id: str, category_id: str | None) -> No
         get_category(db, user_id, category_id)  # raises NotFoundError for foreign/invalid ids
 
 
+def derive_vat_amount(amount: Decimal, vat_rate: Decimal | None) -> Decimal | None:
+    """VAT contained in a gross amount: gross - gross / (1 + rate). Rounded to cents."""
+    if vat_rate is None or vat_rate <= 0:
+        return None
+    net = amount / (Decimal(1) + vat_rate / Decimal(100))
+    return (amount - net).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
 def create_transaction(
     db: Session,
     user_id: str,
@@ -78,7 +86,10 @@ def create_transaction(
     receipt_id: str | None = None,
 ) -> Transaction:
     _validate_category(db, user_id, data.category_id)
-    tx = Transaction(user_id=user_id, source=source, receipt_id=receipt_id, **data.model_dump())
+    values = data.model_dump()
+    if values.get("vat_amount") is None:
+        values["vat_amount"] = derive_vat_amount(values["amount"], values.get("vat_rate"))
+    tx = Transaction(user_id=user_id, source=source, receipt_id=receipt_id, **values)
     db.add(tx)
     db.commit()
     db.refresh(tx)
@@ -96,6 +107,9 @@ def update_transaction(
         changes["currency"] = changes["currency"].upper()
     for key, value in changes.items():
         setattr(tx, key, value)
+    # Keep the VAT amount consistent when amount or rate change and no explicit amount was sent.
+    if ("amount" in changes or "vat_rate" in changes) and "vat_amount" not in changes:
+        tx.vat_amount = derive_vat_amount(tx.amount, tx.vat_rate)
     db.commit()
     db.refresh(tx)
     return tx
