@@ -85,11 +85,17 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(RequestValidationError)
     async def _validation_error(_: Request, exc: RequestValidationError) -> JSONResponse:
+        # Only location, message and type are returned. Pydantic's raw errors also carry the
+        # submitted `input`, which would echo passwords and other sensitive fields back.
+        details = [
+            {"loc": err.get("loc", ()), "msg": err.get("msg", ""), "type": err.get("type", "")}
+            for err in exc.errors()
+        ]
         return _error_response(
             status.HTTP_422_UNPROCESSABLE_CONTENT,
             "validation_error",
             "Request validation failed",
-            jsonable_encoder(exc.errors()),
+            jsonable_encoder(details),
         )
 
     @app.exception_handler(StarletteHTTPException)

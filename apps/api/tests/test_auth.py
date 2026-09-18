@@ -101,3 +101,13 @@ def test_auth_rate_limit(client: TestClient) -> None:
         deps.auth_limiter.limit = 30
     assert statuses[:3] == [401, 401, 401]
     assert statuses[3] == 429
+
+
+def test_validation_errors_do_not_echo_submitted_input(client: TestClient) -> None:
+    response = client.post(
+        REGISTER, json={"email": "x@example.com", "password": "short1!", "name": "X"}
+    )
+    assert response.status_code == 422
+    details = response.json()["error"]["details"]
+    assert details and all(set(d) == {"loc", "msg", "type"} for d in details)
+    assert "short1!" not in response.text

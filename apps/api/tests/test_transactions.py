@@ -97,7 +97,9 @@ def test_csv_export(alice: UserSession) -> None:
     text = response.text.lstrip("﻿")
     lines = text.strip().split("\n")
     assert lines[0].startswith("date;merchant;description;amount")
-    assert lines[1].startswith('2026-08-03;"Adobe; Inc";;23.79;EUR;19.00;3.80;Software & Subscriptions')
+    assert lines[1].startswith(
+        '2026-08-03;"Adobe; Inc";;23.79;EUR;19.00;3.80;Software & Subscriptions'
+    )
 
 
 def test_vat_amount_is_derived_from_rate_when_missing(alice: UserSession) -> None:
@@ -110,3 +112,11 @@ def test_vat_amount_is_derived_from_rate_when_missing(alice: UserSession) -> Non
 
     updated = alice.patch(f"{URL}/{tx['id']}", json={"vat_rate": "7"}).json()
     assert updated["vat_amount"] == "7.79"  # 119 - 119/1.07
+
+
+def test_csv_export_neutralises_formula_cells(alice: UserSession) -> None:
+    alice.add_transaction(merchant='=HYPERLINK("http://evil")', notes="+1", description="@cmd")
+    text = alice.get(f"{URL}/export").text
+    assert "'=HYPERLINK" in text
+    assert ";'@cmd;" in text
+    assert ";'+1" in text

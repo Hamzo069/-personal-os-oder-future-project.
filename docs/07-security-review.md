@@ -41,17 +41,27 @@ XSS-Payloads in Nutzereingaben, manipulierte Uploads.
 | Abhängigkeiten | Lockfiles (`uv.lock`, `package-lock.json`), Versionsbereiche mit Obergrenzen | – |
 | Datenschutz | Konto-Löschung entfernt alle Daten und Dateien; Datenminimierung gegenüber dem KI-Anbieter | `test_delete_account_requires_password_and_removes_everything` |
 
-## Während Entwicklung und Review aufgefallen und behoben
+## Review-Protokoll: gefunden und behoben
 
-1. **Validierungsfehler enthielten nicht serialisierbare Objekte** (`ValueError` in den
-   Pydantic-Details) → der Handler nutzt jetzt `jsonable_encoder`; vorher hätte eine ungültige
-   Eingabe einen 500er ausgelöst.
-2. **Standard-Kategoriefarben** waren für Menschen mit Farbfehlsichtigkeit nicht unterscheidbar
-   (kein Security-, aber ein Accessibility-Befund) → CVD-sichere Palette, zusätzlich immer
-   Textlabels neben Farben.
-3. **Mehrdeutige Formularfelder** (Filter-Select und Dialog-Select hießen beide "Category") wurden
-   im E2E-Test sichtbar → Test scoped auf den Dialog; im UI bleiben beide Felder per `aria-label`
-   erreichbar.
+Ergebnis des abschließenden Code-Reviews über den gesamten Diff (Backend, Frontend, Container,
+CI). Jeder Punkt hat einen Regressionstest.
+
+| # | Befund | Schwere | Fix |
+|---|---|---|---|
+| 1 | **Validierungsfehler spiegelten die Eingabe zurück.** Pydantic-Fehlerdetails enthalten das Feld `input`; bei einem abgelehnten Passwort (z. B. zu kurz) wurde das Passwort im Response-Body zurückgesendet und konnte in Client-Logs/Monitoring landen. | mittel | Handler gibt nur noch `loc`, `msg`, `type` zurück (`core/errors.py`); Test `test_validation_errors_do_not_echo_submitted_input` |
+| 2 | **`X-Forwarded-For` wurde ungeprüft als Rate-Limit-Schlüssel verwendet.** Jeder Client konnte sich per Header einen frischen Bucket geben und Login-Brute-Force am Limit vorbei fahren. | mittel | Anwendung nutzt nur noch die Peer-Adresse des ASGI-Servers; hinter dem Proxy setzt uvicorn (`--proxy-headers --forwarded-allow-ips`) die Adresse für vertrauenswürdige Proxies (`core/rate_limit.py`, `Dockerfile`); Test `test_rate_limit_key_ignores_forwarded_header` |
+| 3 | **CSV-Formel-Injection im Export.** Zellen wie `=HYPERLINK(...)` in Händler/Notizen/Beschreibung würden in Excel/LibreOffice ausgeführt – relevant, weil Händlernamen aus der KI-Extraktion (und damit aus fremden Belegen) stammen können. | niedrig–mittel | Zellen mit führendem `= + - @ \t \r` erhalten ein `'`-Präfix (`transaction_service._safe_cell`); Test `test_csv_export_neutralises_formula_cells` |
+| 4 | **Nutzer-Uploads wurden `inline` aus der API-Origin ausgeliefert.** Da Datenendpunkte nur per Bearer-Header erreichbar sind, war kein direkter Angriffspfad gegeben; trotzdem Defense-in-depth. | niedrig | `Content-Disposition: attachment` + `Content-Security-Policy: sandbox` auf Datei-Antworten; das SPA zeigt Dateien ohnehin über Blob-URLs an (`api/v1/receipts.py`) |
+| 5 | Validierungsfehler enthielten nicht serialisierbare Objekte (`ValueError` im Kontext) → 500 statt 422. | niedrig (Robustheit) | `jsonable_encoder` + Feldfilter, siehe #1 |
+| 6 | Standard-Kategoriefarben waren für Farbfehlsichtige nicht unterscheidbar (Accessibility). | – | CVD-sichere Palette; Farben nie alleiniger Informationsträger |
+
+Geprüft und **ohne Befund**: SQL-Injection (nur ORM-Parameter), Pfad-Traversal (uuid-Dateinamen +
+Basisverzeichnis-Check), IDOR (alle Services user-scoped, Tests pro Ressource), Mass Assignment
+(Pydantic-Schemas begrenzen die Felder), JWT (Algorithmus festgelegt, `type`-Claim, Ablauf),
+Cookie-Attribute, CSRF (nur Bearer auf Datenendpunkten, `SameSite=Lax` + POST auf Auth),
+XSS (React ohne `dangerouslySetInnerHTML`, Farben regex-validiert), Open Redirect
+(`from`-State stammt aus der eigenen Route, nicht aus der URL), Secrets (keine im Code,
+Produktion verweigert Start ohne `SECRET_KEY`), Container (Non-Root, API-Port nicht veröffentlicht).
 
 ## Bekannte Restrisiken / Empfehlungen (Roadmap)
 

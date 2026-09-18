@@ -77,7 +77,10 @@ def get_receipt_file(
         content=storage.read(receipt.storage_path),
         media_type=receipt.media_type,
         headers={
-            "Content-Disposition": f'inline; filename="{receipt.id}"',
+            # User-supplied files are never rendered in the API origin: the SPA fetches
+            # them with the Bearer token and shows them from a blob URL.
+            "Content-Disposition": f'attachment; filename="{receipt.id}"',
+            "Content-Security-Policy": "sandbox",
             "X-Content-Type-Options": "nosniff",
             "Cache-Control": "private, max-age=300",
         },

@@ -42,8 +42,11 @@ class RateLimiter:
 
 
 def client_ip(request: Request) -> str:
-    # Trust X-Forwarded-For only if you run behind a reverse proxy you control.
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded:
-        return forwarded.split(",")[0].strip()
+    """The peer address as seen by the ASGI server.
+
+    `X-Forwarded-For` is deliberately *not* parsed here: any client could set it and pick
+    its own rate-limit bucket. Behind a reverse proxy run uvicorn with `--proxy-headers`
+    and `--forwarded-allow-ips` (see apps/api/Dockerfile) so the server rewrites the peer
+    address only for trusted proxies.
+    """
     return request.client.host if request.client else "unknown"

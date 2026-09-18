@@ -57,6 +57,8 @@ def test_file_download_and_delete(alice: UserSession) -> None:
     assert file_response.status_code == 200
     assert file_response.headers["content-type"] == "image/png"
     assert file_response.content == MINIMAL_PNG
+    assert file_response.headers["content-disposition"].startswith("attachment")
+    assert file_response.headers["content-security-policy"] == "sandbox"
 
     upload_dir = Path(get_settings().upload_dir)
     stored = list(upload_dir.rglob("*.png"))

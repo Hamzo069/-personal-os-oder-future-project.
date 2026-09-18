@@ -43,7 +43,7 @@ migrations, tests on every layer, security review, CI and Docker deployment.
 | 📊 **Dashboard** | Totals, change vs. previous period, VAT, monthly trend, categories, top merchants |
 | 🗂 **Transactions** | Manual entry, filters, sorting, pagination, CSV export (Excel-friendly) |
 | 🔐 **Security** | Argon2id, short-lived JWTs in memory, rotating httpOnly refresh cookies with reuse detection, rate limits, upload validation, per-user isolation |
-| 🧪 **Quality** | 46 API tests, 13 frontend tests, Playwright smoke test, ruff/mypy/eslint/tsc in CI |
+| 🧪 **Quality** | 49 API tests, 13 frontend tests, Playwright smoke test, ruff/mypy/eslint/tsc in CI |
 | 🔌 **Runs offline** | A deterministic mock AI provider – no API key needed for development, demos or tests |
 
 <details>

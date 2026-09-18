@@ -133,15 +133,15 @@ def export_csv(db: Session, user_id: str, f: TransactionFilters) -> str:
         writer.writerow(
             [
                 tx.date.isoformat(),
-                tx.merchant,
-                tx.description or "",
+                _safe_cell(tx.merchant),
+                _safe_cell(tx.description),
                 _fmt(tx.amount),
                 tx.currency,
                 _fmt(tx.vat_rate),
                 _fmt(tx.vat_amount),
-                tx.category.name if tx.category else "",
+                _safe_cell(tx.category.name if tx.category else ""),
                 tx.source,
-                tx.notes or "",
+                _safe_cell(tx.notes),
             ]
         )
     return buffer.getvalue()
@@ -149,3 +149,12 @@ def export_csv(db: Session, user_id: str, f: TransactionFilters) -> str:
 
 def _fmt(value: Decimal | None) -> str:
     return "" if value is None else f"{value:.2f}"
+
+
+def _safe_cell(value: str | None) -> str:
+    """Prevent CSV/formula injection: Excel and LibreOffice evaluate cells starting with
+    '=', '+', '-', '@' (and tab/CR variants). A leading apostrophe forces text."""
+    text = value or ""
+    if text and text[0] in "=+-@\t\r":
+        return "'" + text
+    return text
