@@ -92,7 +92,9 @@ code, comments, commits and issues are English).
 
 ## Quick start (local, no Docker, no API key)
 
-Prerequisites: Python 3.11+, [uv](https://docs.astral.sh/uv/), Node.js 22+.
+Prerequisites: [uv](https://docs.astral.sh/uv/) and Node.js 22+. uv installs the pinned Python version
+(3.12, see `apps/api/.python-version`) automatically. On Windows, install the tools with
+`winget install astral-sh.uv OpenJS.NodeJS.LTS Git.Git` and run the same commands in PowerShell.
 
 ```bash
 git clone https://github.com/Hamzo069/-personal-os-oder-future-project. ledgerlens
