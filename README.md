@@ -104,7 +104,7 @@ cd ledgerlens
 cd apps/api
 uv sync --extra dev
 cp ../../.env.example .env          # optional – defaults work for development
-uv run alembic upgrade head
+uv run alembic upgrade head          # optional: in development the API also migrates on start
 uv run uvicorn app.main:app --reload --port 8000
 #   → http://localhost:8000/docs (Swagger UI)
 

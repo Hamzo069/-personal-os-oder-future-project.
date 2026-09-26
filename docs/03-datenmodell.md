@@ -103,5 +103,9 @@ uv run alembic upgrade head
 uv run alembic check                                       # Modell und DB synchron?
 ```
 
+Beim Start prüft die API die Alembic-Revision (`app/core/migrations.py`). In der Entwicklung
+führt sie fehlende Migrationen automatisch aus. In Produktion verweigert sie den Start mit einem
+klaren Hinweis, weil Deployments `alembic upgrade head` ausdrücklich ausführen (siehe Dockerfile).
+
 `tests/test_migrations.py` stellt sicher, dass die Migrationen exakt die Tabellen der Modelle
 erzeugen.
