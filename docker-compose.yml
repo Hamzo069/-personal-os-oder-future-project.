@@ -1,7 +1,12 @@
-# Production-like local stack: PostgreSQL + API + web (nginx).
-#   cp .env.example .env   # set SECRET_KEY (and ANTHROPIC_API_KEY if you want real AI)
-#   docker compose up --build
-# Then open http://localhost:8080
+# PostgreSQL + API + web (nginx), optionally behind Caddy for automatic HTTPS.
+#
+# Local, production-like:
+#   cp .env.example .env            # set SECRET_KEY and POSTGRES_PASSWORD
+#   docker compose up --build -d    # -> http://localhost:8080
+#
+# Public server with HTTPS (DNS A record of DOMAIN points to the server):
+#   set DOMAIN, CORS_ORIGINS=https://<DOMAIN> and COOKIE_SECURE=true in .env
+#   docker compose --profile https up --build -d   # -> https://<DOMAIN>
 services:
   db:
     image: postgres:16-alpine
@@ -40,11 +45,31 @@ services:
   web:
     build: ./apps/web
     ports:
-      - "8080:80"
+      # Bound to localhost only: from the internet the app is reached through Caddy (HTTPS).
+      - "127.0.0.1:8080:80"
     depends_on:
       - api
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["https"]
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - web
     restart: unless-stopped
 
 volumes:
   db-data:
   uploads:
+  caddy-data:
+  caddy-config:
