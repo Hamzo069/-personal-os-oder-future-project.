@@ -2,7 +2,8 @@
  * End-to-end smoke test against a running stack (API on :8000 with AI_PROVIDER=mock, web on :5173).
  *   npx playwright install chromium   # once
  *   npm run test:e2e
- * Env: BASE_URL (default http://localhost:5173), CHROMIUM_PATH (optional), SHOTS (screenshot dir).
+ * Env: BASE_URL (default http://localhost:5173), CHROMIUM_PATH (optional), SHOTS (screenshot dir),
+ *      IGNORE_HTTPS_ERRORS=1 for a self-signed certificate.
  */
 import { chromium } from "playwright";
 
@@ -12,7 +13,11 @@ const password = "smoke-test-password-1";
 const shots = process.env.SHOTS ?? ".";
 
 const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {});
-const page = await browser.newPage({ viewport: { width: 1280, height: 860 } });
+const page = await browser.newPage({
+  viewport: { width: 1280, height: 860 },
+  // For staging stacks with a self-signed certificate, e.g. Caddy serving https://localhost.
+  ignoreHTTPSErrors: process.env.IGNORE_HTTPS_ERRORS === "1",
+});
 const errors = [];
 page.on("pageerror", (e) => errors.push(String(e)));
 page.on("console", (m) => m.type() === "error" && errors.push(m.text()));

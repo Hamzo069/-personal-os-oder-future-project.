@@ -1,32 +1,103 @@
 # 08 – Deployment
 
-## Option A: Docker Compose (ein Server, ~5 €/Monat)
+## Option A: Eigener Server mit Docker Compose (empfohlen, ~4–6 €/Monat)
 
-Geeignet für einen kleinen VPS (Hetzner, netcup, …) oder einen Heimserver.
+Ein kleiner Linux-Server reicht, zum Beispiel Hetzner CX22 oder netcup mit Ubuntu 24.04.
+Der Stack besteht aus PostgreSQL, API, nginx für das Frontend und Caddy für HTTPS. Caddy
+holt das Let's-Encrypt-Zertifikat automatisch und leitet HTTP auf HTTPS um.
+
+Dieser Weg ist mit `deploy/smoke-test.sh` getestet: Registrierung, Beleg-Upload, Extraktion,
+Buchung, Dashboard und Refresh-Cookie über HTTPS. Die CI startet den Stack bei jedem Push und
+führt denselben Test aus.
+
+### 1. Server und Domain
+
+1. Server mit Ubuntu anlegen und beim Anlegen deinen SSH-Schlüssel hinterlegen.
+   Unter Windows erzeugst du ihn in PowerShell mit `ssh-keygen` und kopierst den Inhalt von
+   `$HOME\.ssh\id_ed25519.pub`.
+2. Bei deinem Domain-Anbieter einen **A-Record** anlegen, z. B. `ledger.example.com`, der auf
+   die IPv4-Adresse des Servers zeigt. Die Änderung braucht oft einige Minuten.
+3. In der Firewall des Anbieters die Ports **22, 80 und 443** freigeben.
+
+### 2. Auf dem Server einrichten
+
+Verbinden, unter Windows direkt aus PowerShell:
 
 ```bash
-git clone <repo> && cd <repo>
-cp .env.example .env
-# .env anpassen:
-#   SECRET_KEY=<python -c "import secrets; print(secrets.token_urlsafe(48))">
-#   POSTGRES_PASSWORD=<zufällig>
-#   CORS_ORIGINS=https://ledger.example.com
-#   COOKIE_SECURE=true
-#   AI_PROVIDER=anthropic  ANTHROPIC_API_KEY=sk-ant-…   (optional, sonst Mock)
-docker compose up --build -d
+ssh root@<SERVER-IP>
 ```
 
-- `web` (nginx) lauscht auf Port 8080 und proxyt `/api` zum `api`-Container.
-- Davor gehört ein TLS-Terminator (Caddy, Traefik oder nginx mit Let's Encrypt). Beispiel Caddy:
-  ```
-  ledger.example.com {
-      reverse_proxy localhost:8080
-  }
-  ```
-- Der API-Container führt beim Start `alembic upgrade head` aus.
-- Persistente Daten: Volumes `db-data` (PostgreSQL) und `uploads` (Belege). **Backups:**
-  `docker compose exec db pg_dump -U ledgerlens ledgerlens > backup.sql` und das Upload-Volume
-  sichern.
+Dann auf dem Server:
+
+```bash
+curl -fsSL https://get.docker.com | sh
+apt-get install -y git
+git clone https://github.com/Hamzo069/LedgerLens.git
+cd LedgerLens
+cp .env.example .env
+nano .env
+```
+
+In `.env` diese Werte setzen:
+
+```
+SECRET_KEY=<Ausgabe von: openssl rand -base64 48>
+POSTGRES_PASSWORD=<Ausgabe von: openssl rand -hex 24>
+DOMAIN=ledger.example.com
+CORS_ORIGINS=https://ledger.example.com
+COOKIE_SECURE=true
+AI_PROVIDER=mock                 # oder anthropic
+ANTHROPIC_API_KEY=               # nur bei AI_PROVIDER=anthropic
+```
+
+Setze `POSTGRES_PASSWORD` vor dem ersten Start. PostgreSQL übernimmt es nur beim Anlegen
+des Datenbank-Volumes. Verwende nur Buchstaben und Ziffern, deshalb `-hex`. Das Passwort
+wird Teil der Datenbank-URL, und Zeichen wie `/` würden sie zerbrechen. Die übrigen Einträge
+der Datei betreffen nur die lokale Entwicklung ohne Docker und werden hier ignoriert.
+
+### 3. Starten
+
+```bash
+docker compose --profile https up --build -d
+docker compose ps          # alle Dienste "Up", api "healthy"
+```
+
+Nach ein bis zwei Minuten ist die App unter `https://ledger.example.com` erreichbar.
+Prüfen lässt sich der Stack mit demselben Test wie in der CI:
+
+```bash
+BASE_URL=https://ledger.example.com sh deploy/smoke-test.sh
+```
+
+Das Skript legt dabei ein Testkonto `smoke-…@example.com` an. Du kannst es danach unter
+Settings → Danger zone löschen.
+
+### Was die Konfiguration absichert
+
+- Nur Caddy ist von außen erreichbar. nginx lauscht ausschließlich auf `127.0.0.1:8080`,
+  API und Datenbank sind nur im internen Docker-Netz erreichbar.
+- Die API vertraut `X-Forwarded-For` nur aus privaten Netzen. Caddy verwirft gefälschte
+  Header von außen, deshalb greifen die Rate-Limits pro echter Client-Adresse.
+- `COOKIE_SECURE=true` sorgt dafür, dass das Refresh-Cookie nur über HTTPS gesendet wird.
+- Die API startet in Produktion nur mit ausreichend langem `SECRET_KEY`, mit PostgreSQL und
+  mit aktuellem Datenbankschema. Die Migrationen laufen vor dem Start automatisch.
+
+### Updates, Logs und Backups
+
+```bash
+git pull && docker compose --profile https up --build -d     # Update, Migrationen laufen automatisch
+docker compose logs -f api                                   # Logs
+docker compose exec db pg_dump -U ledgerlens ledgerlens > backup-$(date +%F).sql
+```
+
+Belege liegen im Volume `uploads`, die Datenbank im Volume `db-data`. Beide gehören ins
+Backup.
+
+### Lokal testen, ohne Domain
+
+Ohne `--profile https` startet der Stack ohne Caddy unter `http://localhost:8080`. Das
+funktioniert auch unter Windows mit Docker Desktop. Setze dafür `COOKIE_SECURE=false` und
+`CORS_ORIGINS=http://localhost:8080`.
 
 ## Option B: Managed Plattformen (kostenlos bis wenige Euro)
 

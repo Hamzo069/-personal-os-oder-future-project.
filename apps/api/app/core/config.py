@@ -8,13 +8,14 @@ safe for local development only and the production checks in
 
 from __future__ import annotations
 
+import json
 import secrets
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import Field, field_validator, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 Environment = Literal["development", "test", "production"]
 AIProviderName = Literal["anthropic", "mock"]
@@ -41,7 +42,12 @@ class Settings(BaseSettings):
     refresh_token_expire_days: int = 30
     refresh_cookie_name: str = "ledgerlens_refresh"
     cookie_secure: bool | None = None  # None -> derived from app_env
-    cors_origins: list[str] = ["http://localhost:5173", "http://127.0.0.1:5173"]
+    # NoDecode: read the raw string so a comma-separated list works. Without it
+    # pydantic-settings expects JSON for list fields and refuses to start.
+    cors_origins: Annotated[list[str], NoDecode] = [
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ]
     rate_limit_auth_per_minute: int = 10
     rate_limit_ai_per_minute: int = 20
 
@@ -62,9 +68,12 @@ class Settings(BaseSettings):
     @field_validator("cors_origins", mode="before")
     @classmethod
     def _split_origins(cls, value: object) -> object:
-        # Allow a comma-separated string in the environment.
+        # Accept "https://a.example,https://b.example" and the JSON form '["https://a.example"]'.
         if isinstance(value, str):
-            return [origin.strip() for origin in value.split(",") if origin.strip()]
+            text = value.strip()
+            if text.startswith("["):
+                return json.loads(text)
+            return [origin.strip() for origin in text.split(",") if origin.strip()]
         return value
 
     @model_validator(mode="after")

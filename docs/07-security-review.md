@@ -49,11 +49,23 @@ CI). Jeder Punkt hat einen Regressionstest.
 | # | Befund | Schwere | Fix |
 |---|---|---|---|
 | 1 | **Validierungsfehler spiegelten die Eingabe zurück.** Pydantic-Fehlerdetails enthalten das Feld `input`; bei einem abgelehnten Passwort (z. B. zu kurz) wurde das Passwort im Response-Body zurückgesendet und konnte in Client-Logs/Monitoring landen. | mittel | Handler gibt nur noch `loc`, `msg`, `type` zurück (`core/errors.py`); Test `test_validation_errors_do_not_echo_submitted_input` |
-| 2 | **`X-Forwarded-For` wurde ungeprüft als Rate-Limit-Schlüssel verwendet.** Jeder Client konnte sich per Header einen frischen Bucket geben und Login-Brute-Force am Limit vorbei fahren. | mittel | Anwendung nutzt nur noch die Peer-Adresse des ASGI-Servers; hinter dem Proxy setzt uvicorn (`--proxy-headers --forwarded-allow-ips`) die Adresse für vertrauenswürdige Proxies (`core/rate_limit.py`, `Dockerfile`); Test `test_rate_limit_key_ignores_forwarded_header` |
+| 2 | **`X-Forwarded-For` wurde ungeprüft als Rate-Limit-Schlüssel verwendet.** Jeder Client konnte sich per Header einen frischen Bucket geben und Login-Brute-Force am Limit vorbei fahren. | mittel | Anwendung nutzt nur noch die Peer-Adresse des ASGI-Servers; hinter dem Proxy setzt uvicorn (`--proxy-headers`, vertrauenswürdig nur private Netze, siehe #7) die Adresse (`core/rate_limit.py`, `Dockerfile`); Test `test_rate_limit_key_ignores_forwarded_header` |
 | 3 | **CSV-Formel-Injection im Export.** Zellen wie `=HYPERLINK(...)` in Händler/Notizen/Beschreibung würden in Excel/LibreOffice ausgeführt – relevant, weil Händlernamen aus der KI-Extraktion (und damit aus fremden Belegen) stammen können. | niedrig–mittel | Zellen mit führendem `= + - @ \t \r` erhalten ein `'`-Präfix (`transaction_service._safe_cell`); Test `test_csv_export_neutralises_formula_cells` |
 | 4 | **Nutzer-Uploads wurden `inline` aus der API-Origin ausgeliefert.** Da Datenendpunkte nur per Bearer-Header erreichbar sind, war kein direkter Angriffspfad gegeben; trotzdem Defense-in-depth. | niedrig | `Content-Disposition: attachment` + `Content-Security-Policy: sandbox` auf Datei-Antworten; das SPA zeigt Dateien ohnehin über Blob-URLs an (`api/v1/receipts.py`) |
 | 5 | Validierungsfehler enthielten nicht serialisierbare Objekte (`ValueError` im Kontext) → 500 statt 422. | niedrig (Robustheit) | `jsonable_encoder` + Feldfilter, siehe #1 |
 | 6 | Standard-Kategoriefarben waren für Farbfehlsichtige nicht unterscheidbar (Accessibility). | – | CVD-sichere Palette; Farben nie alleiniger Informationsträger |
+
+### Nachtrag: Test des kompletten Docker-Stacks
+
+Beim ersten vollständigen Start von PostgreSQL, API, nginx und Caddy fielen drei Fehler auf,
+die Unit-Tests nicht abdecken konnten. Seitdem startet die CI den Stack bei jedem Push und
+führt `deploy/smoke-test.sh` aus.
+
+| # | Befund | Schwere | Fix |
+|---|---|---|---|
+| 7 | **`--forwarded-allow-ips='*'` machte Fix #2 wirkungslos.** uvicorn vertraute jedem Absender. Hinter nginx erhielt jeder gefälschte `X-Forwarded-For`-Wert einen eigenen Rate-Limit-Zähler, Login-Brute-Force war unbegrenzt möglich. | hoch | Vertrauen nur für private Netze (`127.0.0.1`, `10/8`, `172.16/12`, `192.168/16`). Caddy setzt den Header für Anfragen von außen neu. nginx ist nur noch an `127.0.0.1` gebunden. Getestet: über Caddy greift das Limit trotz gefälschtem Header nach zehn Versuchen. |
+| 8 | **Kommagetrennte `CORS_ORIGINS` verhinderten den Start.** pydantic-settings erwartete JSON für Listenfelder. Die Compose-Datei setzt genau diese Form, die API wäre in Produktion nicht gestartet. | hoch (Verfügbarkeit) | `NoDecode` plus eigener Parser für Komma- und JSON-Form; Tests in `tests/test_config.py` |
+| 9 | **Upload-Verzeichnis im Container nicht beschreibbar.** Die API läuft als Nicht-Root-Benutzer, das Volume gehörte root. Jeder Beleg-Upload endete mit einem 500er. | hoch (Funktion) | Verzeichnis im Image anlegen und dem App-Benutzer übergeben |
 
 Geprüft und **ohne Befund**: SQL-Injection (nur ORM-Parameter), Pfad-Traversal (uuid-Dateinamen +
 Basisverzeichnis-Check), IDOR (alle Services user-scoped, Tests pro Ressource), Mass Assignment

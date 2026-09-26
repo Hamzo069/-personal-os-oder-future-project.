@@ -1,0 +1,7 @@
+# Public entry point: automatic HTTPS (Let's Encrypt) for $DOMAIN, proxied to the web container.
+# Used by `docker compose --profile https up -d`. See docs/08-deployment.md.
+{$DOMAIN} {
+	encode zstd gzip
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	reverse_proxy web:80
+}
