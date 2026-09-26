@@ -128,15 +128,19 @@ ANTHROPIC_MODEL=claude-opus-5        # or claude-sonnet-5 for cheaper bulk proce
 
 Or use the Makefile: `make install`, `make api`, `make web`, `make check`.
 
-## Running with Docker (PostgreSQL + API + nginx)
+## Running with Docker (PostgreSQL + API + nginx, optional Caddy for HTTPS)
 
 ```bash
-cp .env.example .env    # set SECRET_KEY (python -c "import secrets; print(secrets.token_urlsafe(48))")
-docker compose up --build
-# → http://localhost:8080
+cp .env.example .env              # set SECRET_KEY and POSTGRES_PASSWORD
+docker compose up --build -d      # → http://localhost:8080
+
+# On a public server: also set DOMAIN, CORS_ORIGINS=https://<DOMAIN> and COOKIE_SECURE=true
+docker compose --profile https up --build -d   # → https://<DOMAIN>, certificate via Let's Encrypt
 ```
 
-See [docs/08-deployment.md](docs/08-deployment.md) for TLS, backups and managed platforms.
+`deploy/smoke-test.sh` checks a running stack end to end; CI runs it on every push.
+See [docs/08-deployment.md](docs/08-deployment.md) for the step-by-step server setup, backups and
+managed platforms.
 
 ## Tests and quality gates
 
