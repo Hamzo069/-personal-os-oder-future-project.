@@ -94,4 +94,21 @@ describe("api client", () => {
     expect(await refreshSession()).toBe(false);
     expect(hasSessionMarker()).toBe(false);
   });
+
+  it("explains an unreachable backend instead of a bare Bad Gateway", async () => {
+    fetchMock.mockResolvedValueOnce(new Response("", { status: 502, statusText: "Bad Gateway" }));
+    const error = (await api.post("/auth/register", {}).catch((e: unknown) => e)) as ApiError;
+    expect(error).toBeInstanceOf(ApiError);
+    expect(error.code).toBe("api_unreachable");
+    expect(error.message).toContain("backend is running");
+  });
+
+  it("keeps the API's own message for a 502 with an error envelope", async () => {
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(502, { error: { code: "ai_service_error", message: "AI provider returned an error" } }),
+    );
+    const error = (await api.post("/ai/query", {}).catch((e: unknown) => e)) as ApiError;
+    expect(error.code).toBe("ai_service_error");
+    expect(error.message).toBe("AI provider returned an error");
+  });
 });

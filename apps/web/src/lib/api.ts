@@ -76,10 +76,19 @@ async function parseError(response: Response): Promise<ApiError> {
     // non-JSON error body
   }
   const error = body?.error;
+  if (!error && [502, 503, 504].includes(response.status)) {
+    // No JSON error envelope: the request never reached the API (dev proxy or nginx
+    // could not connect). Say so instead of showing a bare "Bad Gateway".
+    return new ApiError(
+      response.status,
+      "api_unreachable",
+      "The server is not reachable. Make sure the backend is running on port 8000.",
+    );
+  }
   return new ApiError(
     response.status,
     error?.code ?? "http_error",
-    error?.message ?? response.statusText ?? "Request failed",
+    error?.message ?? (response.statusText || "Request failed"),
     error?.details,
   );
 }
