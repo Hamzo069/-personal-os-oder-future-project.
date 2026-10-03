@@ -43,7 +43,7 @@ migrations, tests on every layer, security review, CI and Docker deployment.
 | 📊 **Dashboard** | Totals, change vs. previous period, VAT, monthly trend, categories, top merchants |
 | 🗂 **Transactions** | Manual entry, filters, sorting, pagination, CSV export (Excel-friendly) |
 | 🔐 **Security** | Argon2id, short-lived JWTs in memory, rotating httpOnly refresh cookies with reuse detection, rate limits, upload validation, per-user isolation |
-| 🧪 **Quality** | 49 API tests, 14 frontend tests, Playwright smoke test, ruff/mypy/eslint/tsc in CI |
+| 🧪 **Quality** | 58 API tests, 16 frontend tests, Playwright smoke test, ruff/mypy/eslint/tsc in CI |
 | 🔌 **Runs offline** | A deterministic mock AI provider – no API key needed for development, demos or tests |
 
 <details>
@@ -139,8 +139,8 @@ docker compose --profile https up --build -d   # → https://<DOMAIN>, certifica
 ```
 
 `deploy/smoke-test.sh` checks a running stack end to end; CI runs it on every push.
-See [docs/08-deployment.md](docs/08-deployment.md) for the step-by-step server setup, backups and
-managed platforms.
+See [docs/08-deployment.md](docs/08-deployment.md) for the step-by-step server setup, backups,
+managed platforms and using Supabase as the PostgreSQL database.
 
 ## Tests and quality gates
 

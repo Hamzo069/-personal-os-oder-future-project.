@@ -67,6 +67,15 @@ führt `deploy/smoke-test.sh` aus.
 | 8 | **Kommagetrennte `CORS_ORIGINS` verhinderten den Start.** pydantic-settings erwartete JSON für Listenfelder. Die Compose-Datei setzt genau diese Form, die API wäre in Produktion nicht gestartet. | hoch (Verfügbarkeit) | `NoDecode` plus eigener Parser für Komma- und JSON-Form; Tests in `tests/test_config.py` |
 | 9 | **Upload-Verzeichnis im Container nicht beschreibbar.** Die API läuft als Nicht-Root-Benutzer, das Volume gehörte root. Jeder Beleg-Upload endete mit einem 500er. | hoch (Funktion) | Verzeichnis im Image anlegen und dem App-Benutzer übergeben |
 
+### Nachtrag: Betrieb auf einer verwalteten PostgreSQL-Datenbank
+
+Bei der Vorbereitung für Supabase aufgefallen, beide auf einem echten PostgreSQL 16 nachgestellt.
+
+| # | Befund | Schwere | Fix |
+|---|---|---|---|
+| 10 | **Tabellen ohne Row Level Security.** Verwaltete Plattformen wie Supabase stellen das Schema `public` über eine Schnittstelle bereit, die mit einem öffentlichen Schlüssel erreichbar ist. Im Test las eine Rolle wie `anon` E-Mail-Adressen und Passwort-Hashes aus `users`. | hoch | Migration `enable_row_level_security` schaltet RLS für alle Tabellen ein, ohne Policies. Danach liefert dieselbe Abfrage der Rolle `anon` keine Zeile, die API als Besitzer bleibt unberührt. Test: `test_postgres_migrations_enable_row_level_security` |
+| 11 | **URL-kodierte Datenbank-Passwörter ließen Alembic abstürzen.** Alembic speichert die URL in einem ConfigParser, der `%` als Syntax behandelt (`invalid interpolation syntax`). Cloud-Anbieter vergeben oft Passwörter mit Sonderzeichen, der Container wäre beim Start gescheitert. | mittel (Verfügbarkeit) | Prozentzeichen in `alembic/env.py` maskieren. Test: `test_database_url_with_percent_encoded_password` |
+
 Geprüft und **ohne Befund**: SQL-Injection (nur ORM-Parameter), Pfad-Traversal (uuid-Dateinamen +
 Basisverzeichnis-Check), IDOR (alle Services user-scoped, Tests pro Ressource), Mass Assignment
 (Pydantic-Schemas begrenzen die Felder), JWT (Algorithmus festgelegt, `type`-Claim, Ablauf),
