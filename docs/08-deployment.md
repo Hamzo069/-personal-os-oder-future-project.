@@ -99,6 +99,67 @@ Ohne `--profile https` startet der Stack ohne Caddy unter `http://localhost:8080
 funktioniert auch unter Windows mit Docker Desktop. Setze dafür `COOKIE_SECURE=false` und
 `CORS_ORIGINS=http://localhost:8080`.
 
+## Supabase als Datenbank
+
+Supabase führt die LedgerLens-API **nicht** aus. Es bietet PostgreSQL, Table Editor und SQL
+Editor, Backups und Dateispeicher, aber keinen Python-Server. Die Edge Functions laufen mit
+Deno und TypeScript. Die API (FastAPI) läuft weiter bei dir: auf dem eigenen PC, auf einem
+Server oder bei einem Hoster wie Render, Railway oder Fly.io. Supabase ersetzt nur die
+Datenbank, in der Entwicklung SQLite, im Compose-Stack den PostgreSQL-Container.
+
+Das Frontend und die Authentifizierung bleiben unverändert. Konten, Passwörter und Sitzungen
+verwaltet die App selbst, nicht Supabase Auth.
+
+### Einrichten
+
+1. Auf supabase.com ein Projekt anlegen. Wähle eine Region in deiner Nähe, zum Beispiel
+   Frankfurt. Das Datenbank-Passwort sollte nur aus Buchstaben und Ziffern bestehen.
+2. Im Projekt auf **Connect** klicken und den Connection String für den **Session pooler**
+   kopieren (Port 5432). Er hat diese Form:
+   `postgresql://postgres.<projekt-ref>:<passwort>@aws-0-<region>.pooler.supabase.com:5432/postgres`
+3. In `apps/api/.env` die Datenbank-URL setzen. Ersetze `postgresql://` durch
+   `postgresql+psycopg://` und hänge `?sslmode=require` an:
+
+   ```
+   DATABASE_URL=postgresql+psycopg://postgres.<projekt-ref>:<passwort>@aws-0-<region>.pooler.supabase.com:5432/postgres?sslmode=require
+   ```
+
+   Enthält das Passwort Sonderzeichen, müssen sie URL-kodiert werden, zum Beispiel `@` als
+   `%40` und `/` als `%2F`.
+4. API starten. In der Entwicklung legt sie die Tabellen beim ersten Start selbst an. In
+   Produktion führt der Container `alembic upgrade head` aus, siehe Dockerfile.
+5. Im Supabase-Dashboard unter **Table Editor** und **SQL Editor** siehst du die Daten. Die
+   Beispielabfragen funktionieren in PostgreSQL, nur `strftime('%Y-%m', date)` heißt dort
+   `to_char(date, 'YYYY-MM')`.
+
+Warum der Session pooler: Die direkte Verbindung (`db.<ref>.supabase.co`) nutzt bei
+Supabase nur IPv6 und scheitert in vielen Heimnetzen. Der Transaction pooler (Port 6543)
+unterstützt die Prepared Statements nicht, die der PostgreSQL-Treiber verwendet.
+
+### Sicherheit: Row Level Security
+
+Supabase stellt Tabellen im Schema `public` über eine HTTP-Schnittstelle bereit, die mit einem
+öffentlichen Schlüssel erreichbar ist. Eine Tabelle ohne Row Level Security (RLS) ließe sich
+darüber lesen und ändern, einschließlich der Passwort-Hashes in `users`.
+
+Die Migration `enable_row_level_security` schaltet RLS für alle Tabellen ein, ohne Policies.
+Damit sind alle Rollen außer dem Besitzer ausgesperrt. Die API ist der Besitzer und merkt
+nichts davon. Getestet auf PostgreSQL 16: Vor der Migration las die Rolle `anon` die Tabelle
+`users`, danach sieht sie keine Zeile mehr.
+
+Jede künftige Migration, die eine Tabelle anlegt, muss RLS für diese Tabelle ebenfalls
+einschalten (`ALTER TABLE ... ENABLE ROW LEVEL SECURITY`). Prüfe nach dem ersten Start im
+Dashboard unter **Advisors → Security Advisor**, dass keine Tabelle als ungeschützt gemeldet
+wird. Wer die Supabase-Schnittstelle nicht braucht, kann sie unter **Project Settings → Data
+API** abschalten.
+
+### Was in Supabase nicht landet
+
+Hochgeladene Belege liegen weiter im Dateisystem der API (`UPLOAD_DIR`). Auf einem Hoster ohne
+dauerhaften Datenträger gehen sie bei jedem Neustart verloren. Für den vollständigen Betrieb
+bei Render oder Vercel fehlt deshalb noch ein S3-Speicher, den Supabase Storage bereitstellen
+könnte. Das ist Issue #2.
+
 ## Option B: Managed Plattformen (kostenlos bis wenige Euro)
 
 | Komponente | Anbieter (Beispiele) | Hinweise |

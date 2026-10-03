@@ -89,6 +89,9 @@ users 1 ──── n refresh_tokens
 
 ## Lösch- und Datenschutzkonzept
 
+- Auf PostgreSQL ist Row Level Security für alle Tabellen eingeschaltet, ohne Policies. Nur der
+  Besitzer, also die API, kann lesen und schreiben (siehe Migration `enable_row_level_security`).
+
 - `DELETE /users/me` löscht den Nutzer; **alle** abhängigen Zeilen fallen per `ON DELETE CASCADE`,
   Dateien werden vom Storage entfernt.
 - Beleg löschen entfernt Datei + Zeile; verknüpfte Buchungen bleiben (receipt_id → NULL).
