@@ -73,6 +73,42 @@ jobs:
         shell: bash
         run: cat "${{ runner.temp }}/smoke-data/ledgerlens.log" || true
 
+      - name: Open the window and take a screenshot
+        # Best effort: it proves a window opens when the runner has an interactive desktop.
+        continue-on-error: true
+        shell: pwsh
+        env:
+          LEDGERLENS_DATA_DIR: ${{ runner.temp }}\window-data
+        run: |
+          $app = Start-Process -FilePath "apps\desktop\dist\LedgerLens\LedgerLens.exe" -ArgumentList "--port", "8768" -PassThru
+          try {
+            $ok = $false
+            for ($i = 0; $i -lt 60 -and -not $ok; $i++) {
+              try { $ok = (Invoke-WebRequest -Uri "http://127.0.0.1:8768/health" -UseBasicParsing).StatusCode -eq 200 }
+              catch { Start-Sleep -Seconds 1 }
+            }
+            Start-Sleep -Seconds 10
+            $app.Refresh()
+            Write-Host "Server answered: $ok"
+            Write-Host "Process still running: $(-not $app.HasExited)"
+            Write-Host "Window title: '$($app.MainWindowTitle)'"
+            Add-Type -AssemblyName System.Windows.Forms, System.Drawing
+            $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
+            $bitmap = New-Object System.Drawing.Bitmap $bounds.Width, $bounds.Height
+            [System.Drawing.Graphics]::FromImage($bitmap).CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size)
+            $bitmap.Save((Join-Path $PWD "window-screenshot.png"))
+            if (-not $ok -or $app.HasExited -or $app.MainWindowTitle -ne "LedgerLens") { throw "The window did not open as expected" }
+          } finally {
+            Stop-Process -Id $app.Id -Force -ErrorAction SilentlyContinue
+            Get-Content (Join-Path $env:LEDGERLENS_DATA_DIR "ledgerlens.log") -Tail 15 -ErrorAction SilentlyContinue
+          }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: window-screenshot
+          path: window-screenshot.png
+          if-no-files-found: ignore
+
       - name: Build the installer
         shell: pwsh
         run: |
