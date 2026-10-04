@@ -5,7 +5,8 @@
 #   BASE_URL=http://localhost:8080 sh deploy/smoke-test.sh
 #   BASE_URL=https://localhost CURL_INSECURE=1 sh deploy/smoke-test.sh   # self-signed certificate
 #
-# Needs curl and python3. Exits non-zero on the first failing step.
+# Needs curl and python3 (set PYTHON=python where there is no python3, e.g. Git Bash on Windows).
+# Exits non-zero on the first failing step.
 set -eu
 
 BASE_URL="${BASE_URL:-http://localhost:8080}"
@@ -16,7 +17,7 @@ trap 'rm -rf "$TMP"' EXIT
 CURL="curl -sS --max-time 20"
 [ "${CURL_INSECURE:-0}" = "1" ] && CURL="$CURL -k"
 
-json() { python3 -c "import json,sys; print(json.load(sys.stdin)$1)"; }
+json() { "${PYTHON:-python3}" -c "import json,sys; print(json.load(sys.stdin)$1)"; }
 step() { printf '%-28s' "$1"; }
 
 step "web app"

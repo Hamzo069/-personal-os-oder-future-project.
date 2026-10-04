@@ -35,3 +35,7 @@ data/
 .DS_Store
 *.tsbuildinfo
 apps/web/e2e/shots/
+
+# Windows desktop program build output
+apps/desktop/dist/
+apps/desktop/build/

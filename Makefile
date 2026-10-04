@@ -1,4 +1,4 @@
-.PHONY: install dev api web test lint check build up down
+.PHONY: install dev api web test lint check build up down desktop-build
 
 install:        ## install backend and frontend dependencies
 	cd apps/api && uv sync --extra dev
@@ -25,3 +25,7 @@ up:             ## start the production-like stack with Docker Compose
 
 down:
 	docker compose down
+
+desktop-build:  ## freeze the desktop program for this OS (see apps/desktop/README.md)
+	cd apps/web && npm ci && npm run build
+	cd apps/api && uv sync --extra desktop && uv run pyinstaller ../desktop/ledgerlens.spec --noconfirm --distpath ../desktop/dist --workpath ../desktop/build

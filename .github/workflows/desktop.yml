@@ -1,0 +1,129 @@
+name: Desktop (Windows)
+
+# Builds the Windows program and installer, tests them on a real Windows runner and, for a
+# published release, attaches them to that release.
+on:
+  push:
+    paths: ["apps/**", "deploy/smoke-test.sh", ".github/workflows/desktop.yml"]
+  pull_request:
+    paths: ["apps/**", "deploy/smoke-test.sh", ".github/workflows/desktop.yml"]
+  release:
+    types: [published]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    name: Program and installer
+    runs-on: windows-latest
+    permissions:
+      contents: write # attach the installer to a published release
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/web/package-lock.json
+      - name: Build the web app
+        working-directory: apps/web
+        run: |
+          npm ci
+          npm run build
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: apps/api/uv.lock
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        working-directory: apps/api
+        run: uv sync --frozen --extra desktop
+      - name: Build the program
+        working-directory: apps/api
+        run: uv run pyinstaller ../desktop/ledgerlens.spec --noconfirm --distpath ../desktop/dist --workpath ../desktop/build
+
+      - name: The window toolkit is packaged
+        shell: pwsh
+        env:
+          LEDGERLENS_DATA_DIR: ${{ runner.temp }}\check-data
+        run: |
+          $run = Start-Process -FilePath "apps\desktop\dist\LedgerLens\LedgerLens.exe" -ArgumentList "--check" -Wait -PassThru
+          $log = Join-Path $env:LEDGERLENS_DATA_DIR "ledgerlens.log"
+          if (Test-Path $log) { Get-Content $log }
+          if ($run.ExitCode -ne 0) { throw "Window toolkit check failed with exit code $($run.ExitCode)" }
+
+      - name: Start the program and run the smoke test
+        shell: bash
+        env:
+          LEDGERLENS_DATA_DIR: ${{ runner.temp }}/smoke-data
+        run: |
+          trap 'taskkill //F //IM LedgerLens.exe > /dev/null 2>&1 || true' EXIT
+          apps/desktop/dist/LedgerLens/LedgerLens.exe --headless --port 8765 &
+          for i in $(seq 1 60); do curl -sf http://127.0.0.1:8765/health > /dev/null && break; sleep 1; done
+          BASE_URL=http://127.0.0.1:8765 PYTHON=python sh deploy/smoke-test.sh
+      - name: Program log
+        if: failure()
+        shell: bash
+        run: cat "${{ runner.temp }}/smoke-data/ledgerlens.log" || true
+
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          choco install innosetup -y --no-progress
+          $version = (uv run --project apps/api python -c "import app; print(app.__version__)").Trim()
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "/DAppVersion=$version" apps\desktop\installer.iss
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit code $LASTEXITCODE" }
+          "VERSION=$version" >> $env:GITHUB_ENV
+
+      - name: Install silently, start the installed program, uninstall
+        shell: pwsh
+        env:
+          LEDGERLENS_DATA_DIR: ${{ runner.temp }}\installed-data
+        run: |
+          $installer = Get-ChildItem "apps\desktop\dist\LedgerLens-Setup-*.exe" | Select-Object -First 1
+          $target = Join-Path $env:RUNNER_TEMP "ll-installed"
+          Start-Process -FilePath $installer.FullName -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/DIR=$target" -Wait
+          $exe = Join-Path $target "LedgerLens.exe"
+          if (-not (Test-Path $exe)) { throw "The installer did not install LedgerLens.exe" }
+          $app = Start-Process -FilePath $exe -ArgumentList "--headless", "--port", "8766" -PassThru
+          $ok = $false
+          for ($i = 0; $i -lt 60 -and -not $ok; $i++) {
+            try { $ok = (Invoke-WebRequest -Uri "http://127.0.0.1:8766/health" -UseBasicParsing).StatusCode -eq 200 }
+            catch { Start-Sleep -Seconds 1 }
+          }
+          Stop-Process -Id $app.Id -Force
+          if (-not $ok) {
+            Get-Content (Join-Path $env:LEDGERLENS_DATA_DIR "ledgerlens.log") -ErrorAction SilentlyContinue
+            throw "The installed program did not answer"
+          }
+          # The uninstaller copies itself and returns at once, so wait for the files to go.
+          Start-Process -FilePath (Join-Path $target "unins000.exe") -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES" -Wait
+          for ($i = 0; $i -lt 60 -and (Test-Path $exe); $i++) { Start-Sleep -Seconds 1 }
+          if (Test-Path $exe) { throw "The uninstaller left LedgerLens.exe behind" }
+
+      - name: Zip the portable version
+        shell: pwsh
+        run: Compress-Archive -Path "apps\desktop\dist\LedgerLens" -DestinationPath "apps\desktop\dist\LedgerLens-portable-$env:VERSION.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: LedgerLens-Windows
+          path: |
+            apps/desktop/dist/LedgerLens-Setup-*.exe
+            apps/desktop/dist/LedgerLens-portable-*.zip
+          if-no-files-found: error
+
+      - name: Attach to the release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            apps/desktop/dist/LedgerLens-Setup-*.exe
+            apps/desktop/dist/LedgerLens-portable-*.zip

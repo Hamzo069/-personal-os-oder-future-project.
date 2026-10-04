@@ -17,7 +17,7 @@ from typing import Annotated, Literal
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
-Environment = Literal["development", "test", "production"]
+Environment = Literal["development", "test", "production", "desktop"]
 AIProviderName = Literal["anthropic", "mock"]
 
 
@@ -57,6 +57,11 @@ class Settings(BaseSettings):
     # --- Storage -------------------------------------------------------------
     upload_dir: Path = Path("./data/uploads")
     max_upload_mb: int = 10
+
+    # --- Frontend ------------------------------------------------------------
+    # When set, the API also serves the built web app from this folder (single-process
+    # setups such as the Windows desktop program). Normally nginx or Vite serves it.
+    frontend_dist: Path | None = None
 
     # --- AI ------------------------------------------------------------------
     ai_provider: AIProviderName = "mock"
