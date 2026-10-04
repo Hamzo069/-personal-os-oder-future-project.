@@ -87,6 +87,7 @@ code, comments, commits and issues are English).
 | [07 Security Review](docs/07-security-review.md) | Threat model, measures, remaining risks |
 | [08 Deployment](docs/08-deployment.md) | Docker Compose on a VPS, managed platforms, environment variables |
 | [09 Roadmap](docs/09-roadmap.md) | 12 months, linked to GitHub issues |
+| [10 Windows-Programm](docs/10-desktop-programm.md) | Installer, settings, data folder, building it |
 | [Lernpfad](docs/lernpfad.md) | A six-week guided tour through the codebase |
 | [ADRs](docs/adr) | Architecture decision records |
 
@@ -128,6 +129,15 @@ ANTHROPIC_MODEL=claude-opus-5        # or claude-sonnet-5 for cheaper bulk proce
 
 Or use the Makefile: `make install`, `make api`, `make web`, `make check`.
 
+## Windows program
+
+LedgerLens also runs as a normal Windows program with its own window and an installer. Everything
+is included, and the data stays in `%APPDATA%\LedgerLens`. Download `LedgerLens-Setup-<version>.exe`
+from the [Releases](../../releases) page. Windows SmartScreen warns about the unsigned installer
+once: choose "More info", then "Run anyway". See
+[docs/10-desktop-programm.md](docs/10-desktop-programm.md) for installation, settings and
+troubleshooting, and [apps/desktop/README.md](apps/desktop/README.md) for building it yourself.
+
 ## Running with Docker (PostgreSQL + API + nginx, optional Caddy for HTTPS)
 
 ```bash
@@ -162,6 +172,7 @@ push and pull request.
 .
 ├── apps/api/           FastAPI backend (see apps/api/README.md)
 ├── apps/web/           React frontend
+├── apps/desktop/       packaging of the Windows program (PyInstaller, installer, icon)
 ├── docs/               architecture, product, security, deployment, roadmap, ADRs, screenshots
 ├── .github/            CI workflow, issue and PR templates
 ├── docker-compose.yml  production-like stack
