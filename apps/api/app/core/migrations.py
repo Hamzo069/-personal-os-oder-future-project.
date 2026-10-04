@@ -15,6 +15,7 @@ Alembic revision when it starts:
 from __future__ import annotations
 
 import logging
+import sys
 from pathlib import Path
 
 from alembic import command
@@ -25,7 +26,8 @@ from sqlalchemy.engine import Engine
 
 logger = logging.getLogger(__name__)
 
-API_DIR = Path(__file__).resolve().parents[2]
+# In a PyInstaller bundle the alembic folder is unpacked next to the executable.
+API_DIR = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[2]))
 
 
 class DatabaseNotMigratedError(RuntimeError):
