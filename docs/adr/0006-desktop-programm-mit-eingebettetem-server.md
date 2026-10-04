@@ -30,6 +30,8 @@ Daten liegen in SQLite unter `%APPDATA%\LedgerLens`. Der Server akzeptiert nur H
 - Voraussetzung ist die WebView2-Runtime. Fehlt sie, zeigt das Programm eine Meldung mit Link.
 - Das Programm ist nicht signiert, SmartScreen warnt beim ersten Start.
 - Der Windows-Build läuft ausschließlich in CI auf einem Windows-Runner. Dort werden
-  Fenster-Paket, Server-Ablauf und Installer getestet. Das Fenster selbst wird nicht
-  automatisiert geöffnet.
+  Fenster-Paket, Server-Ablauf und Installer getestet. Zusätzlich startet CI das Programm mit
+  Fenster, liest den Fenstertitel aus und legt ein Bildschirmfoto ab. Dieser Schritt darf
+  fehlschlagen, ohne den Build zu stoppen, weil er einen interaktiven Desktop auf dem Runner
+  voraussetzt. Der Inhalt des Fensters und der CSV-Export darin werden nicht automatisiert geprüft.
 - Mehrere Konten auf einem PC sind möglich, die Datenbank gehört aber dem Windows-Benutzer.

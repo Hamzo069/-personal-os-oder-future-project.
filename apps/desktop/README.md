@@ -39,7 +39,8 @@ iscc /DAppVersion=0.1.0 apps\desktop\installer.iss    # -> apps\desktop\dist\Led
 CI does all of this on a Windows runner (`.github/workflows/desktop.yml`) and tests the result:
 `LedgerLens.exe --check` proves the window toolkit was packaged, `--headless` plus
 `deploy/smoke-test.sh` runs the whole product flow against the built program, and the installer is
-installed silently, started and uninstalled again.
+installed silently, started and uninstalled again. A best-effort step also starts the program with
+its window, reads the window title and keeps a screenshot as the `window-screenshot` artifact.
 
 ## Options
 
@@ -55,7 +56,7 @@ in `<data folder>\config.env` use the same names as `.env.example`.
 ## Known limits
 
 - The program is not code signed, so Windows SmartScreen warns on first start.
-- The CSV export from inside the window relies on pywebview's download support. It has not been
-  tried on a real desktop yet.
+- The content of the window is only checked by the screenshot artifact, and nobody has yet
+  tried the CSV export from inside the window. It relies on pywebview's download support.
 - A PostgreSQL `DATABASE_URL` in `config.env` is supported by the code, but the packaged
   program was not tested against a real server.
